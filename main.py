@@ -18,13 +18,14 @@ def get_staged_diff() -> str:
     return result.stdout
 
 
-def generate_commit_message(diff: str) -> str:
+def generate_commit_message(diff: str) -> tuple[str, str]:
     client = Anthropic()
     model = os.getenv("CODEPILOT_MODEL", "claude-haiku-5-5")
 
     prompt = (
         "Write a git commit message for the diff below.\n"
-        "Use the format: type(scope): subject\n"
+        "First line: a summary in the format type(scope): subject\n"
+        "Then a blank line, then a 1-3 sentence description of what changed and why.\n"
         "Reply with only the commit message, nothing else.\n\n"
         f"{diff}"
     )
@@ -35,11 +36,17 @@ def generate_commit_message(diff: str) -> str:
     )
 
     text_parts = [block.text for block in response.content if block.type == "text"]
-    return "".join(text_parts).strip()
+    message = "".join(text_parts).strip()
+
+    subject, _, description = message.partition("\n\n")
+    return subject.strip(), description.strip()
 
 
-def commit(message: str) -> None:                                   
-    subprocess.run(["git", "commit", "-m", message], check=True)
+def commit(subject: str, description: str) -> None:
+    args = ["git", "commit", "-m", subject]
+    if description:
+        args += ["-m", description]
+    subprocess.run(args, check=True)
 
 
 def main():
@@ -48,15 +55,18 @@ def main():
         print("Nothing is staged")
         return
 
-    message = generate_commit_message(diff)
+    subject, description = generate_commit_message(diff)
     print("Suggested commit message:\n")
-    print(message)
+    print(subject)
+    if description:
+        print()
+        print(description)
 
-    answer = input("\nCommit with this message? [y/n]: ").strip().lower()   
-    if answer == "y":                                                      
-        commit(message)                                                  
-    else:                                                                  
-        print("Cancelled. Nothing was committed.")                          
+    answer = input("\nCommit with this message? [y/n]: ").strip().lower()
+    if answer == "y":
+        commit(subject, description)
+    else:
+        print("Cancelled. Nothing was committed.")
 
 
 if __name__ == "__main__":
