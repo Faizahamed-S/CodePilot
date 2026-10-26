@@ -1,10 +1,11 @@
 import subprocess
 import os
+from pathlib import Path
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).parent / ".env")
 
 
 def get_staged_diff() -> str:
